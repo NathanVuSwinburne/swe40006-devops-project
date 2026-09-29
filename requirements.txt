@@ -1,6 +1,7 @@
 pytest
 fastapi
 uvicorn
+psycopg[binary]
 httpx
 playwright
 pytest-playwright
