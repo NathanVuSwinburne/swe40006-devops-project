@@ -1,34 +1,55 @@
+import os
+
+import httpx
 import pytest
-from fastapi.testclient import TestClient
-
-import src.main as main
 
 
-client = TestClient(main.app)
+BASE_URL = os.getenv(
+    "BASE_URL",
+    "http://127.0.0.1:8000"
+)
+
+
+def clear_tasks():
+    response = httpx.get(
+        f"{BASE_URL}/tasks",
+        timeout=10
+    )
+    response.raise_for_status()
+
+    for task in response.json():
+        delete_response = httpx.delete(
+            f"{BASE_URL}/tasks/{task['id']}",
+            timeout=10
+        )
+
+        assert delete_response.status_code == 204
 
 
 @pytest.fixture(autouse=True)
-def reset_tasks():
-    main.tasks.clear()
-    main.next_task_id = 1
+def clean_tasks():
+    clear_tasks()
 
     yield
 
-    main.tasks.clear()
-    main.next_task_id = 1
+    clear_tasks()
 
 
 def test_health_endpoint():
-    response = client.get("/health")
+    response = httpx.get(
+        f"{BASE_URL}/health",
+        timeout=10
+    )
 
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
 
 def test_create_and_list_task():
-    create_response = client.post(
-        "/tasks",
+    create_response = httpx.post(
+        f"{BASE_URL}/tasks",
         json={"title": "Integration Test"},
+        timeout=10
     )
 
     assert create_response.status_code == 201
@@ -38,7 +59,10 @@ def test_create_and_list_task():
     assert created_task["title"] == "Integration Test"
     assert created_task["completed"] is False
 
-    list_response = client.get("/tasks")
+    list_response = httpx.get(
+        f"{BASE_URL}/tasks",
+        timeout=10
+    )
 
     assert list_response.status_code == 200
 
@@ -49,16 +73,18 @@ def test_create_and_list_task():
 
 
 def test_update_task_status():
-    create_response = client.post(
-        "/tasks",
+    create_response = httpx.post(
+        f"{BASE_URL}/tasks",
         json={"title": "Complete integration test"},
+        timeout=10
     )
 
     task_id = create_response.json()["id"]
 
-    response = client.patch(
-        f"/tasks/{task_id}",
+    response = httpx.patch(
+        f"{BASE_URL}/tasks/{task_id}",
         json={"completed": True},
+        timeout=10
     )
 
     assert response.status_code == 200
@@ -66,28 +92,34 @@ def test_update_task_status():
 
 
 def test_delete_task():
-    create_response = client.post(
-        "/tasks",
+    create_response = httpx.post(
+        f"{BASE_URL}/tasks",
         json={"title": "Delete integration test"},
+        timeout=10
     )
 
     task_id = create_response.json()["id"]
 
-    delete_response = client.delete(
-        f"/tasks/{task_id}"
+    delete_response = httpx.delete(
+        f"{BASE_URL}/tasks/{task_id}",
+        timeout=10
     )
 
     assert delete_response.status_code == 204
 
-    list_response = client.get("/tasks")
+    list_response = httpx.get(
+        f"{BASE_URL}/tasks",
+        timeout=10
+    )
 
     assert list_response.json() == []
 
 
 def test_empty_task_title_returns_400():
-    response = client.post(
-        "/tasks",
+    response = httpx.post(
+        f"{BASE_URL}/tasks",
         json={"title": "   "},
+        timeout=10
     )
 
     assert response.status_code == 400
@@ -95,11 +127,11 @@ def test_empty_task_title_returns_400():
 
 
 def test_missing_task_returns_404():
-    response = client.patch(
-        "/tasks/999",
+    response = httpx.patch(
+        f"{BASE_URL}/tasks/999999999",
         json={"completed": True},
+        timeout=10
     )
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Task not found"
-    
