@@ -1,0 +1,65 @@
+# Production stack for the SWE40006 Task Manager.
+# Runs on the production EC2 instance only. Three containers:
+#   nginx -> reverse proxy on port 80, writes a JSON access log (used for request/latency metrics)
+#   app   -> the FastAPI app (built from the Dockerfile in the repo root)
+#   db    -> PostgreSQL, data kept in a named volume so it survives redeploys
+#
+# Secrets (DB password) come from deploy/production/.env, which is created on the server
+# by deploy.sh the first time it runs and is never committed.
+
+name: swe40006-prod
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /var/log/swe40006/nginx:/var/log/swe40006
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app:
+    build:
+      context: ../..
+    image: swe40006-app:prod
+    restart: unless-stopped
+    environment:
+      # The app connects with psycopg/libpq, which reads the standard PG* variables
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD missing - run deploy.sh}
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
