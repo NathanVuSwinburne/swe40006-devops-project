@@ -49,7 +49,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run unit tests
-        run: pytest tests/unit tests/test_calculator.py
+        run: python -m pytest tests/unit tests/test_calculator.py
 
       - name: Install Chromium for Playwright
         run: python -m playwright install --with-deps chromium
@@ -76,7 +76,7 @@ jobs:
             cat /tmp/uvicorn.log
             exit 1
           }
-          pytest tests/integration tests/staging tests/e2e
+          python -m pytest tests/integration tests/staging tests/e2e
 
       - name: Build Docker image
         run: docker build --tag swe40006-devops-project:ci .
