@@ -15,6 +15,26 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      PGHOST: 127.0.0.1
+      PGDATABASE: taskmanager
+      PGUSER: taskmanager
+      PGPASSWORD: ci-test-password
+      BASE_URL: http://127.0.0.1:8000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: taskmanager
+          POSTGRES_USER: taskmanager
+          POSTGRES_PASSWORD: ci-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taskmanager -d taskmanager"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Checkout repository
@@ -29,7 +49,34 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run unit tests
-        run: pytest
+        run: pytest tests/unit tests/test_calculator.py
+
+      - name: Install Chromium for Playwright
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run API and browser tests
+        shell: bash
+        run: |
+          uvicorn src.main:app --host 127.0.0.1 --port 8000 > /tmp/uvicorn.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent "$BASE_URL/health" > /dev/null; then
+              break
+            fi
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              cat /tmp/uvicorn.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent "$BASE_URL/health" > /dev/null || {
+            cat /tmp/uvicorn.log
+            exit 1
+          }
+          pytest tests/integration tests/staging tests/e2e
 
       - name: Build Docker image
         run: docker build --tag swe40006-devops-project:ci .
