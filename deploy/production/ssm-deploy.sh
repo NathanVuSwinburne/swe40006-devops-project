@@ -16,6 +16,7 @@ INSTANCE_ID="${PROD_INSTANCE_ID:?PROD_INSTANCE_ID is not set}"
 REGION="${AWS_REGION:-ap-southeast-2}"
 BRANCH="${DEPLOY_BRANCH:-main}"
 PUBLIC_URL="${PROD_URL:-}"
+PUBLIC_URL="${PUBLIC_URL%/}"
 COMMIT="${GITHUB_SHA:-manual-run}"   # GITHUB_SHA only exists inside GitHub Actions
 REMOTE_CMD="sudo -u ubuntu -H env DEPLOY_BRANCH=$BRANCH bash /opt/swe40006/app/deploy/production/deploy.sh"
 
