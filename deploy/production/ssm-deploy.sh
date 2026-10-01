@@ -16,14 +16,15 @@ INSTANCE_ID="${PROD_INSTANCE_ID:?PROD_INSTANCE_ID is not set}"
 REGION="${AWS_REGION:-ap-southeast-2}"
 BRANCH="${DEPLOY_BRANCH:-main}"
 PUBLIC_URL="${PROD_URL:-}"
+COMMIT="${GITHUB_SHA:-manual-run}"   # GITHUB_SHA only exists inside GitHub Actions
 REMOTE_CMD="sudo -u ubuntu -H env DEPLOY_BRANCH=$BRANCH bash /opt/swe40006/app/deploy/production/deploy.sh"
 
-echo "Deploying branch '$BRANCH' (commit ${GITHUB_SHA:-local}) to $INSTANCE_ID via SSM"
+echo "Deploying branch '$BRANCH' (commit ${COMMIT:0:12}) to $INSTANCE_ID via SSM"
 COMMAND_ID=$(aws ssm send-command \
   --region "$REGION" \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
-  --comment "GitHub Actions deploy ${GITHUB_SHA:0:7}" \
+  --comment "Deploy ${COMMIT:0:12}" \
   --parameters "$(jq -n --arg c "$REMOTE_CMD" '{commands: [$c], executionTimeout: ["900"]}')" \
   --query "Command.CommandId" --output text)
 echo "SSM command id: $COMMAND_ID"
