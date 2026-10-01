@@ -1,0 +1,34 @@
+# Reference for Nathan: the production deploy job to add to the main workflow (Level 4).
+# This file is NOT a workflow itself (it isn't in .github/workflows), it's just the
+# block to copy under `jobs:` in the real pipeline YAML.
+#
+# One-time repo setup (Settings -> Secrets and variables -> Actions):
+#   Secret   AWS_DEPLOY_ROLE_ARN = arn:aws:iam::<account>:role/swe40006-github-deploy-role  (from Aryan)
+#   Secret   PROD_INSTANCE_ID    = i-...                                                  (from Aryan)
+#   Variable PROD_URL            = http://<elastic-ip>                                    (from Aryan)
+
+  deploy-production:
+    name: Deploy to Production (AWS EC2 via SSM)
+    needs: [staging-tests]            # <- change to the job that runs Pasan's staging + E2E tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # environment: production         # optional: uncomment for a "production" deployment history
+    #                                 # (and a manual approval button = deferred deployment)
+    permissions:
+      id-token: write                 # lets GitHub prove its identity to AWS (OIDC), no AWS keys stored
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Get temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-southeast-2
+
+      - name: Deploy to production and verify /health
+        env:
+          PROD_INSTANCE_ID: ${{ secrets.PROD_INSTANCE_ID }}
+          PROD_URL: ${{ vars.PROD_URL }}
+        run: bash deploy/production/ssm-deploy.sh

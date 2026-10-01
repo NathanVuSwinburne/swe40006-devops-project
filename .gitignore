@@ -2,3 +2,6 @@
 __pycache__/
 .pytest_cache/
 .env
+
+# production secrets (created on the server by deploy.sh)
+deploy/production/.env
