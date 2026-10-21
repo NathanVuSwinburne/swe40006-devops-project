@@ -49,7 +49,7 @@ alarm() {  # name description namespace metric stat period evals threshold opera
   local dims=()
   [ $# -gt 0 ] && dims=(--dimensions "$@")
   aws cloudwatch put-metric-alarm --alarm-name "$name" --alarm-description "$desc" \
-    --namespace "$ns" --metric-name "$metric" --statistic "$stat" \
+    --namespace "$ns" --metric-name "$metric" $([[ $stat == p* ]] && echo --extended-statistic || echo --statistic) "$stat" \
     --period "$period" --evaluation-periods "$evals" --threshold "$thr" \
     --comparison-operator "$op" --treat-missing-data notBreaching \
     --alarm-actions "$TOPIC_ARN" --ok-actions "$TOPIC_ARN" "${dims[@]}"
@@ -61,7 +61,7 @@ alarm high-cpu      "CPU above 70% for 5 minutes"            AWS/EC2 CPUUtilizat
 alarm high-memory   "Memory above 85% for 5 minutes"         "$NS"   mem_used_percent Average 300 1 85 GreaterThanThreshold          "Name=InstanceId,Value=$INSTANCE_ID"
 alarm status-check  "EC2 instance or system check failing"   AWS/EC2 StatusCheckFailed Maximum 60 2 1  GreaterThanOrEqualToThreshold "Name=InstanceId,Value=$INSTANCE_ID"
 alarm http-5xx      "5 or more server errors in 5 minutes"   "$NS"   Http5xx          Sum     300 1 5  GreaterThanOrEqualToThreshold
-alarm high-latency  "Average request latency above 1 second" "$NS"   RequestLatency   Average 300 1 1  GreaterThanThreshold
+alarm high-latency  "p95 request latency above 500 ms"       "$NS"   RequestLatency   p95     300 1 0.5 GreaterThanThreshold
 
 echo "== 4/4 Dashboard $DASHBOARD"
 ALARMS_JSON=$(printf '"%s",' "${ALARM_ARNS[@]}"); ALARMS_JSON="[${ALARMS_JSON%,}]"
